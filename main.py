@@ -29,7 +29,21 @@ def main():
 
     # 3. Instagram投稿
     post_id = post_to_instagram(image_url, caption)
-    print(f"\n[Main] ✅ 投稿完了! ID: {post_id}")
+    print(f"\n[Main] ✅ Instagram投稿完了! ID: {post_id}")
+
+    # 4. X投稿（トークンが設定されている場合のみ）
+    from config import X_OAUTH2_REFRESH_TOKEN
+    if X_OAUTH2_REFRESH_TOKEN:
+        try:
+            from x.poster import post_tweet
+            # X用キャプション（280文字制限）
+            x_caption = caption[:270] + "…" if len(caption) > 270 else caption
+            tweet_id = post_tweet(x_caption, x_username="eno_SBpaylife")
+            print(f"[Main] ✅ X投稿完了! ID: {tweet_id}")
+        except Exception as e:
+            print(f"[Main] ⚠️ X投稿エラー（Instagram投稿は成功済み）: {e}")
+    else:
+        print("[Main] X_OAUTH2_REFRESH_TOKEN 未設定 - X投稿スキップ")
 
 if __name__ == "__main__":
     main()
