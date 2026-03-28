@@ -82,7 +82,7 @@ def _generate_caption(topic: str, pattern: str, campaign_info: str) -> str:
 キャプション本文のみ出力してください。"""
 
     message = client.messages.create(
-        model="claude-3-5-haiku-20241022",
+        model="claude-3-haiku-20240307",
         max_tokens=400,
         messages=[{"role": "user", "content": prompt}],
     )
@@ -105,7 +105,7 @@ def _generate_caption(topic: str, pattern: str, campaign_info: str) -> str:
 def _score_caption(caption: str, topic: str) -> float:
     client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
     message = client.messages.create(
-        model="claude-3-5-haiku-20241022",
+        model="claude-3-haiku-20240307",
         max_tokens=10,
         messages=[{
             "role": "user",
