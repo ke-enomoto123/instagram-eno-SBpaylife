@@ -15,7 +15,6 @@ jobs:
           python-version: '3.11'
       - name: Install dependencies
         run: pip install -r requirements.txt
-      - name: Random delay (0-30 min)
         run: sleep $((RANDOM % 1800))
       - name: Post to Instagram
         env:
