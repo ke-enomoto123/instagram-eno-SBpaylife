@@ -1,8 +1,10 @@
-name: Evening Post (20:00 JST)
+name: Daily Post (3x/day)
 
 on:
   schedule:
-    - cron: '0 11 * * *'  # 20:00 JST
+    - cron: '0 22 * * *'   # 7:00 JST (朝)
+    - cron: '0 3 * * *'    # 12:00 JST (昼)
+    - cron: '0 11 * * *'   # 20:00 JST (夜)
   workflow_dispatch:
 
 jobs:
@@ -15,10 +17,8 @@ jobs:
           python-version: '3.11'
       - name: Install dependencies
         run: pip install -r requirements.txt
-        run: sleep $((RANDOM % 1800))
       - name: Post to Instagram
         env:
-          TIME_OF_DAY: evening
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           IMGBB_API_KEY: ${{ secrets.IMGBB_API_KEY }}
