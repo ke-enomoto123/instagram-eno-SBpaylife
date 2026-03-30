@@ -120,17 +120,11 @@ def generate_image(prompt: str, save_path: str):
     )
 
     image_url = response.data[0].url
+    print(f"[Image] DALL-E URL取得完了（直接使用）")
 
     # ローカル保存
     img_response = requests.get(image_url, timeout=30)
     with open(save_path, 'wb') as f:
         f.write(img_response.content)
 
-    # imgbbにアップロード
-    try:
-        imgbb_url = _upload_to_imgbb(save_path)
-        print(f"[Image] imgbbアップロード完了")
-        return save_path, imgbb_url
-    except Exception as e:
-        print(f"[Image] imgbbアップロード失敗: {e}、DALL-E URLを直接使用")
-        return save_path, image_url
+    return save_path, image_url
