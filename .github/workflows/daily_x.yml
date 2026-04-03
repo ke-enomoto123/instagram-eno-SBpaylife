@@ -1,10 +1,8 @@
-name: Daily X (3x/day)
+name: Daily X (1x/day)
 
 on:
   schedule:
-    - cron: '10 22 * * *'   # 7:10 JST (朝)
     - cron: '10 3 * * *'    # 12:10 JST (昼)
-    - cron: '10 11 * * *'   # 20:10 JST (夜)
   workflow_dispatch:
 
 jobs:
