@@ -44,7 +44,7 @@ Generate a complete, ready-to-post infographic image."""
     print(f"[Infographic] Gemini APIで画像生成中...")
 
     response = client.models.generate_content(
-        model="gemini-2.0-flash-preview-image-generation",
+        model="gemini-2.0-flash-exp-image-generation",
         contents=prompt,
         config=types.GenerateContentConfig(
             response_modalities=["TEXT", "IMAGE"]
