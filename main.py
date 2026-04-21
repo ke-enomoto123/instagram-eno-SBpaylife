@@ -3,6 +3,7 @@ import sys
 import datetime
 from content.caption_generator import build_caption
 from content.image_generator import generate_image
+from content.news_fetcher import fetch_latest_news
 from instagram.poster import post_to_instagram
 
 def main():
@@ -11,8 +12,15 @@ def main():
     print(f"[Main] 時間帯: {os.getenv('TIME_OF_DAY', 'general')}")
     print("=" * 50)
 
+    # 0. ニュースチェック（朝の1回目のみ優先取得、他は通常）
+    forced_topic = None
+    news = fetch_latest_news(hours=48)
+    if news:
+        forced_topic = news["title"]
+        print(f"[Main] ニュース優先トピック: {forced_topic[:60]}")
+
     # 1. キャプション生成
-    result = build_caption()
+    result = build_caption(forced_topic=forced_topic)
     caption = result["caption"]
     score = result["score"]
 

@@ -73,11 +73,26 @@ def _get_access_token() -> str:
     return access_token
 
 
+def _upload_media(image_path: str, access_token: str) -> str:
+    """画像をX Media Upload APIでアップロードし media_id を返す"""
+    print(f"[X] 画像アップロード中: {image_path}")
+    with open(image_path, "rb") as f:
+        response = requests.post(
+            "https://upload.twitter.com/1.1/media/upload.json",
+            headers={"Authorization": f"Bearer {access_token}"},
+            files={"media": f},
+            timeout=60,
+        )
+    if not response.ok:
+        print(f"[X] 画像アップロードエラー: {response.text}")
+    response.raise_for_status()
+    media_id = str(response.json()["media_id"])
+    print(f"[X] 画像アップロード完了: media_id={media_id}")
+    return media_id
+
+
 def post_tweet(text: str, x_username: str = "eno_sbpaylife") -> str:
-    """
-    X（Twitter）にツイートを投稿する。
-    Returns: tweet_id
-    """
+    """X（Twitter）にテキストのみのツイートを投稿する。"""
     print(f"[X] ツイート投稿開始...")
     print(f"[X] 文字数: {len(text)}")
     print(f"[X] 内容: {text[:60]}...")
@@ -92,6 +107,37 @@ def post_tweet(text: str, x_username: str = "eno_sbpaylife") -> str:
             "Content-Type": "application/json",
         },
         json={"text": text},
+        timeout=30,
+    )
+
+    if not response.ok:
+        print(f"[X] 投稿エラー詳細: {response.text}")
+    response.raise_for_status()
+
+    tweet_id = str(response.json()["data"]["id"])
+    print(f"[X] 投稿完了! Tweet ID: {tweet_id}")
+    print(f"[X] URL: https://x.com/{x_username}/status/{tweet_id}")
+    return tweet_id
+
+
+def post_tweet_with_image(text: str, image_path: str, x_username: str = "eno_sbpaylife") -> str:
+    """X（Twitter）に画像付きツイートを投稿する。"""
+    print(f"[X] 画像付きツイート投稿開始...")
+    print(f"[X] 文字数: {len(text)}")
+    print(f"[X] 内容: {text[:60]}...")
+
+    access_token = _get_access_token()
+    print(f"[X] アクセストークン取得完了")
+
+    media_id = _upload_media(image_path, access_token)
+
+    response = requests.post(
+        "https://api.x.com/2/tweets",
+        headers={
+            "Authorization": f"Bearer {access_token}",
+            "Content-Type": "application/json",
+        },
+        json={"text": text, "media": {"media_ids": [media_id]}},
         timeout=30,
     )
 

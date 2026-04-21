@@ -142,8 +142,8 @@ def _score_caption(caption: str, topic: str) -> float:
     except:
         return 7.0
 
-def build_caption() -> dict:
-    topic = random.choice(TOPIC_CATEGORIES)
+def build_caption(forced_topic: str = None) -> dict:
+    topic = forced_topic if forced_topic else random.choice(TOPIC_CATEGORIES)
     pattern = _select_post_type()
     campaign_info = _load_campaign_info()
 
