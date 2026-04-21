@@ -21,7 +21,7 @@ if not CLIENT_ID or not CLIENT_SECRET:
 oauth2_handler = tweepy.OAuth2UserHandler(
     client_id=CLIENT_ID,
     redirect_uri="https://localhost",
-    scope=["tweet.read", "tweet.write", "users.read", "offline.access"],
+    scope=["tweet.read", "tweet.write", "users.read", "offline.access", "media.write"],
     client_secret=CLIENT_SECRET,
 )
 
