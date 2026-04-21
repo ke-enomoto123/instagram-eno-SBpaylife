@@ -13,7 +13,7 @@ def generate_infographic(news: dict, save_path: str = "/tmp/infographic.png") ->
     """
     try:
         from google import genai
-        from google.genai import types
+        from google.genai.types import GenerateImagesConfig
     except ImportError:
         raise ImportError("google-genai が未インストールです: pip install google-genai")
 
@@ -41,23 +41,20 @@ Design requirements:
 Do NOT use placeholder text. Use the actual Japanese content from the news provided above.
 Generate a complete, ready-to-post infographic image."""
 
-    print(f"[Infographic] Gemini APIで画像生成中...")
+    print(f"[Infographic] Gemini Imagen APIで画像生成中...")
 
-    response = client.models.generate_content(
-        model="gemini-2.0-flash-exp-image-generation",
-        contents=prompt,
-        config=types.GenerateContentConfig(
-            response_modalities=["TEXT", "IMAGE"]
+    response = client.models.generate_images(
+        model="imagen-3.0-generate-002",
+        prompt=prompt,
+        config=GenerateImagesConfig(
+            number_of_images=1,
+            aspect_ratio="9:16",
         ),
     )
 
-    for part in response.candidates[0].content.parts:
-        if part.inline_data is not None:
-            image_bytes = part.inline_data.data
-            image = Image.open(io.BytesIO(image_bytes))
-            os.makedirs(os.path.dirname(save_path) if os.path.dirname(save_path) else ".", exist_ok=True)
-            image.save(save_path)
-            print(f"[Infographic] 生成完了: {save_path} ({image.size[0]}x{image.size[1]}px)")
-            return save_path
-
-    raise RuntimeError("[Infographic] Gemini APIから画像が返されませんでした")
+    image_bytes = response.generated_images[0].image.image_bytes
+    image = Image.open(io.BytesIO(image_bytes))
+    os.makedirs(os.path.dirname(save_path) if os.path.dirname(save_path) else ".", exist_ok=True)
+    image.save(save_path)
+    print(f"[Infographic] 生成完了: {save_path} ({image.size[0]}x{image.size[1]}px)")
+    return save_path
