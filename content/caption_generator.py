@@ -142,6 +142,56 @@ def _score_caption(caption: str, topic: str) -> float:
     except:
         return 7.0
 
+def build_x_caption(forced_topic: str = None) -> dict:
+    """X（Twitter）専用：短くシンプルな投稿を生成"""
+    topic = forced_topic if forced_topic else random.choice(TOPIC_CATEGORIES)
+    campaign_info = _load_campaign_info()
+    client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+
+    campaign_section = f"\n【今使えるキャンペーン情報】\n{campaign_info}" if campaign_info else ""
+
+    prompt = f"""あなたは以下のペルソナでX（Twitter）の投稿を書いてください。
+
+【ペルソナ】
+{ACCOUNT_PERSONA}
+
+【投稿トピック】
+{topic}
+{campaign_section}
+
+【ルール】
+- 本文は100〜160文字。短くてリズムよく
+- 2〜3段落、各1〜2文
+- 絵文字は1〜2個のみ
+- 最後に問いかけか共感を誘う一文で締める
+- ハッシュタグは含めない（別途追加）
+- 「。」は付けない
+- 捏造NG。具体的な数字は基礎知識か事実のみ使用
+- SoftBankユーザー歴とサービスの歴史を混同しない
+
+本文のみ出力。"""
+
+    message = client.messages.create(
+        model="claude-haiku-4-5",
+        max_tokens=300,
+        messages=[{"role": "user", "content": prompt}],
+    )
+    caption = message.content[0].text.strip().rstrip("。")
+
+    hashtags = random.sample(HASHTAGS_JA, min(3, len(HASHTAGS_JA)))
+    full_caption = f"{caption}\n\n{' '.join(hashtags)}"
+
+    print(f"[X Caption] トピック: {topic}")
+    print(f"[X Caption] 文字数: {len(full_caption)}")
+
+    return {
+        "caption": full_caption,
+        "score": 7.0,
+        "topic": topic,
+        "pattern": "X専用",
+    }
+
+
 def build_caption(forced_topic: str = None) -> dict:
     topic = forced_topic if forced_topic else random.choice(TOPIC_CATEGORIES)
     pattern = _select_post_type()

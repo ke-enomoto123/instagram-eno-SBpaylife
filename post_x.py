@@ -1,6 +1,6 @@
 import os
 import datetime
-from content.caption_generator import build_caption
+from content.caption_generator import build_x_caption
 from content.news_fetcher import fetch_latest_news
 from x.poster import post_tweet
 
@@ -15,8 +15,8 @@ def main():
     news = fetch_latest_news(hours=48)
     forced_topic = news["title"] if news else None
 
-    # キャプション生成
-    result = build_caption(forced_topic=forced_topic)
+    # キャプション生成（X専用：短くシンプル）
+    result = build_x_caption(forced_topic=forced_topic)
     caption = result["caption"]
     score = result["score"]
 
