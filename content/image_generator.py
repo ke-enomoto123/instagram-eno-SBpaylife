@@ -227,8 +227,44 @@ def _upload_to_imgbb(image_path: str) -> str:
     return data["display_url"]
 
 
+def _generate_with_openai(prompt: str, save_path: str) -> str | None:
+    """gpt-image-2 → gpt-image-1 の順でフォールバックして生成。imgbb URLを返す"""
+    client = OpenAI(api_key=OPENAI_API_KEY)
+
+    for model in ["gpt-image-2", "gpt-image-1"]:
+        try:
+            print(f"[Image] {model} で画像生成中...")
+            response = client.images.generate(
+                model=model,
+                prompt=prompt,
+                size="1024x1024",
+                quality="medium",
+                n=1,
+            )
+            image_data = base64.b64decode(response.data[0].b64_json)
+            with open(save_path, 'wb') as f:
+                f.write(image_data)
+            print(f"[Image] {model} 生成完了 → {save_path}")
+
+            try:
+                image_url = _upload_to_imgbb(save_path)
+                print(f"[Image] imgbbアップロード完了")
+                return image_url
+            except Exception as e:
+                print(f"[Image] imgbbアップロード失敗: {e}")
+                return None
+
+        except Exception as e:
+            print(f"[Image] {model} 失敗: {e}")
+            if model == "gpt-image-1":
+                raise  # 両方失敗したら例外を上げる
+            print(f"[Image] {model} → gpt-image-1 にフォールバック...")
+
+    return None
+
+
 def generate_image(caption: str, save_path: str):
-    """ユーザー写真優先、なければgpt-image-2で生成（広告バナー or 気づき系をランダム）"""
+    """ユーザー写真優先、なければgpt-image-2（→gpt-image-1フォールバック）で生成"""
     # ① ユーザー写真を試す
     user_photo = _get_user_photo()
     if user_photo:
@@ -239,29 +275,8 @@ def generate_image(caption: str, save_path: str):
         except Exception as e:
             print(f"[Image] imgbbアップロード失敗: {e}")
 
-    # ② gpt-image-2で生成
+    # ② OpenAI画像生成（gpt-image-2 → gpt-image-1 フォールバック）
     prompt = _build_prompt(caption)
-    print(f"[Image] gpt-image-2で画像生成中...")
-
-    client = OpenAI(api_key=OPENAI_API_KEY)
-    response = client.images.generate(
-        model="gpt-image-2",
-        prompt=prompt,
-        size="1024x1024",
-        quality="medium",
-        n=1,
-    )
-
-    image_data = base64.b64decode(response.data[0].b64_json)
-    with open(save_path, 'wb') as f:
-        f.write(image_data)
-    print(f"[Image] gpt-image-2 生成完了 → {save_path}")
-
-    try:
-        image_url = _upload_to_imgbb(save_path)
-        print(f"[Image] imgbbアップロード完了")
-    except Exception as e:
-        print(f"[Image] imgbbアップロード失敗: {e}")
-        image_url = None
+    image_url = _generate_with_openai(prompt, save_path)
 
     return save_path, image_url
