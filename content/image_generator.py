@@ -184,7 +184,7 @@ def generate_image(caption: str, save_path: str):
 
     client = OpenAI(api_key=OPENAI_API_KEY)
     response = client.images.generate(
-        model="gpt-image-1",
+        model="gpt-image-2",
         prompt=infographic_prompt,
         size="1024x1024",
         quality="medium",
