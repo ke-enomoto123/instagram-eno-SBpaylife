@@ -6,7 +6,8 @@ on:
   workflow_dispatch:
 
 jobs:
-  post:
+  # ── Job 1: キャプション・画像を生成してSlackに通知 ──────────────
+  generate:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -15,12 +16,38 @@ jobs:
           python-version: '3.11'
       - name: Install dependencies
         run: pip install -r requirements.txt
-      - name: Post to Instagram
+      - name: Generate post & notify Slack
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           IMGBB_API_KEY: ${{ secrets.IMGBB_API_KEY }}
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: python scripts/generate_post.py
+      - name: Upload post data
+        uses: actions/upload-artifact@v4
+        with:
+          name: post-data
+          path: post_data.json
+          retention-days: 1
+
+  # ── Job 2: 承認後にInstagramへ投稿 ──────────────────────────────
+  post:
+    needs: generate
+    environment: preview        # ← ここで承認待ち（GitHub & Slack通知済み）
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Download post data
+        uses: actions/download-artifact@v4
+        with:
+          name: post-data
+      - name: Post to Instagram
+        env:
           INSTAGRAM_ACCESS_TOKEN: ${{ secrets.INSTAGRAM_ACCESS_TOKEN }}
           INSTAGRAM_BUSINESS_ACCOUNT_ID: ${{ secrets.INSTAGRAM_BUSINESS_ACCOUNT_ID }}
-          GOOGLE_AI_API_KEY: ${{ secrets.GOOGLE_AI_API_KEY }}
-        run: python main.py
+        run: python scripts/post_instagram.py
