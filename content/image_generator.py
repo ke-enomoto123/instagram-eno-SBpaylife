@@ -1,43 +1,50 @@
 import os
 import base64
-import random
 import shutil
 import requests
 from io import BytesIO
 from openai import OpenAI
 from config import OPENAI_API_KEY, IMGBB_API_KEY
 
-NO_FACE = "IMPORTANT: Do NOT show any person's face. Show hands only, over-the-shoulder view, or focus on the smartphone screen / objects only."
+# アカウント設定
+ACCOUNT_HANDLE = "@eno_sbpaylife"
+BRAND_COLOR = "red (#FF0027)"
+BRAND_THEME = "PayPay / SoftBank / LYPプレミアム"
 
-DALLE_PROMPTS = [
-    # PayPay・スマホ決済
-    f"Close-up of woman's hands holding a smartphone showing a QR payment app (PayPay-style) at a convenience store checkout. Soft indoor lighting, natural and casual feel. {NO_FACE}",
-    f"Overhead flat lay of a smartphone with a digital wallet app open, surrounded by shopping bags and a coffee cup on a white desk. Bright and minimal. {NO_FACE}",
-    f"Woman's hand tapping smartphone at a cashier terminal, blurred store background, warm lighting. Everyday shopping scene. {NO_FACE}",
 
-    # Yahoo!ショッピング・EC
-    f"Hands opening a cardboard delivery box with shopping items inside, warm home interior background. Casual unboxing scene. {NO_FACE}",
-    f"Smartphone screen showing an online shopping app with products, held in woman's hands, cozy home setting. {NO_FACE}",
-    f"Flat lay of delivered packages, a smartphone, and a notebook on a wooden floor. Lifestyle and online shopping theme. {NO_FACE}",
+def _build_infographic_prompt(caption: str) -> str:
+    """キャプションからインフォグラフィック用プロンプトを生成"""
+    return f"""
+Create a clean, modern Japanese infographic image in 1:1 square format for Instagram.
 
-    # ポイント・カード
-    f"Woman's hand holding a credit card next to a smartphone showing a points balance screen. Clean white background. {NO_FACE}",
-    f"Close-up of a smartphone screen displaying point rewards and cashback numbers. Soft background blur. {NO_FACE}",
-    f"Flat lay of a smartphone, credit card, receipt, and small coins on a marble surface. Money saving concept. {NO_FACE}",
+Design style:
+- Flat design, NOT photographic, NOT artistic illustration
+- White or very light gray background
+- Bold, readable Japanese text
+- Accent color: {BRAND_COLOR}
+- Modern sans-serif font style
 
-    # 日常・カフェ・生活
-    f"Woman's hands typing on a laptop at a cafe, smartphone beside it showing a shopping app. Natural light, cozy atmosphere. {NO_FACE}",
-    f"Comfortable home desk setup with smartphone showing deals/coupons screen, coffee mug, and notebook. Soft morning light. {NO_FACE}",
-    f"Grocery shopping scene with a smartphone held above items in a basket, QR code visible. Supermarket setting. {NO_FACE}",
+Layout (top to bottom):
+1. Header bar (full width, {BRAND_COLOR} background): Title text in white, large and bold
+2. Main content area: 3 to 4 key benefit points, each on its own row
+   - Each row: colored circle icon or checkmark on the left, Japanese text on the right
+   - Most important number or percentage displayed in extra-large font, highlighted
+3. Thin divider line
+4. Footer: "{ACCOUNT_HANDLE}" in small gray text, right-aligned
 
-    # コンビニ
-    f"Convenience store interior scene, woman's hand with smartphone near payment terminal. Bright store lighting, casual and real. {NO_FACE}",
-    f"Close-up of convenience store snacks and drinks on shelf, with a smartphone showing a coupon screen. {NO_FACE}",
+Content to display — extract the 3 to 4 most important points from this caption:
+\"\"\"
+{caption[:600]}
+\"\"\"
 
-    # まとめ・節約
-    f"Flat lay of a notebook with savings calculations, a smartphone, calculator, and pen on a desk. Budget planning concept. {NO_FACE}",
-    f"Overhead shot of hands writing in a notebook next to a smartphone displaying monthly cashback summary. Clean desk setup. {NO_FACE}",
-]
+Important rules:
+- All text must be in Japanese
+- Numbers and percentages must be accurate and prominently displayed
+- Do NOT add any decorative illustrations, people, or photos
+- Keep it simple and easy to read at a glance
+- This is an informational graphic, not art
+"""
+
 
 def _convert_to_jpeg(image_path: str) -> bytes:
     """画像をJPEGに変換（PNG→JPEG対応）"""
@@ -50,9 +57,9 @@ def _convert_to_jpeg(image_path: str) -> bytes:
         img.save(buffer, format='JPEG', quality=95)
         return buffer.getvalue()
     except ImportError:
-        # Pillowがない場合はそのまま読む
         with open(image_path, 'rb') as f:
             return f.read()
+
 
 def _get_user_photo() -> str | None:
     """photos/フォルダから未使用の写真を取得"""
@@ -76,6 +83,7 @@ def _get_user_photo() -> str | None:
     print(f"[Image] ユーザー写真を使用: {selected}")
     return used_path
 
+
 def _upload_to_imgbb(image_path: str) -> str:
     """JPEG変換してimgbbにアップロード、URLを返す"""
     jpeg_data = _convert_to_jpeg(image_path)
@@ -93,8 +101,9 @@ def _upload_to_imgbb(image_path: str) -> str:
     data = response.json()["data"]
     return data["display_url"]
 
-def generate_image(prompt: str, save_path: str):
-    """ユーザー写真優先、なければDALL-Eで生成"""
+
+def generate_image(caption: str, save_path: str):
+    """ユーザー写真優先、なければgpt-image-1でインフォグラフィック生成"""
     # ① ユーザー写真を試す
     user_photo = _get_user_photo()
     if user_photo:
@@ -104,27 +113,33 @@ def generate_image(prompt: str, save_path: str):
             return user_photo, image_url
         except Exception as e:
             print(f"[Image] imgbbアップロード失敗: {e}")
-            print("[Image] DALL-Eにフォールバック...")
+            print("[Image] gpt-image-1にフォールバック...")
 
-    # ② DALL-Eで生成
-    dalle_prompt = random.choice(DALLE_PROMPTS)
-    print(f"[Image] DALL-E生成中...")
+    # ② gpt-image-1でインフォグラフィック生成
+    infographic_prompt = _build_infographic_prompt(caption)
+    print(f"[Image] gpt-image-1でインフォグラフィック生成中...")
 
     client = OpenAI(api_key=OPENAI_API_KEY)
     response = client.images.generate(
-        model="dall-e-3",
-        prompt=dalle_prompt,
+        model="gpt-image-1",
+        prompt=infographic_prompt,
         size="1024x1024",
-        quality="standard",
+        quality="medium",
         n=1,
     )
 
-    image_url = response.data[0].url
-    print(f"[Image] DALL-E URL取得完了（直接使用）")
-
-    # ローカル保存
-    img_response = requests.get(image_url, timeout=30)
+    # base64デコードして保存
+    image_data = base64.b64decode(response.data[0].b64_json)
     with open(save_path, 'wb') as f:
-        f.write(img_response.content)
+        f.write(image_data)
+    print(f"[Image] gpt-image-1 生成完了 → {save_path}")
+
+    # imgbbにアップロード
+    try:
+        image_url = _upload_to_imgbb(save_path)
+        print(f"[Image] imgbbアップロード完了")
+    except Exception as e:
+        print(f"[Image] imgbbアップロード失敗: {e}")
+        image_url = None
 
     return save_path, image_url
