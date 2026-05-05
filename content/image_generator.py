@@ -1,48 +1,111 @@
 import os
+import json
 import base64
 import shutil
 import requests
 from io import BytesIO
 from openai import OpenAI
-from config import OPENAI_API_KEY, IMGBB_API_KEY
+import anthropic
+from config import OPENAI_API_KEY, IMGBB_API_KEY, ANTHROPIC_API_KEY
 
 # アカウント設定
 ACCOUNT_HANDLE = "@eno_sbpaylife"
-BRAND_COLOR = "red (#FF0027)"
-BRAND_THEME = "PayPay / SoftBank / LYPプレミアム"
+BRAND_COLOR_HEX = "#FF0027"
+BRAND_COLOR_NAME = "PayPay red"
+
+
+def _analyze_caption(caption: str) -> dict:
+    """Claudeでキャプションを分析してビジュアルコンセプトを生成"""
+    client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+    response = client.messages.create(
+        model="claude-haiku-4-5",
+        max_tokens=600,
+        messages=[{
+            "role": "user",
+            "content": f"""以下のInstagram投稿テキストを読んで、イラスト画像のビジュアルコンセプトをJSONで出力してください。
+
+投稿テキスト:
+{caption}
+
+出力形式（JSONのみ。説明不要）:
+{{
+  "title": "画像上部に表示するキャッチコピー（20文字以内）",
+  "key_number": "最も目立たせたい数字や割合（例: 月額0円、5%還元）",
+  "happy_scene": "SoftBankユーザーが得している様子（英語で、イラスト指示として。例: a cheerful person pumping fist with coins flying around）",
+  "sad_scene": "知らない人が損している様子（英語で。例: a confused person looking at an expensive bill with empty wallet）",
+  "visual_element": "お得さを表す装飾要素（英語で。例: golden coins raining down, upward arrow graph, star burst effects）"
+}}"""
+        }]
+    )
+
+    text = response.content[0].text.strip()
+    # コードブロックがあれば除去
+    if "```" in text:
+        parts = text.split("```")
+        for part in parts:
+            part = part.strip()
+            if part.startswith("json"):
+                part = part[4:].strip()
+            try:
+                return json.loads(part)
+            except Exception:
+                continue
+    return json.loads(text)
 
 
 def _build_infographic_prompt(caption: str) -> str:
-    """キャプションからインフォグラフィック用プロンプトを生成"""
+    """キャプションを分析してイラスト型プロンプトを生成"""
+    try:
+        concept = _analyze_caption(caption)
+        title = concept.get("title", "SoftBankユーザーは得してる！")
+        key_number = concept.get("key_number", "")
+        happy_scene = concept.get("happy_scene", "a cheerful person holding smartphone with coins flying around")
+        sad_scene = concept.get("sad_scene", "a confused person with empty wallet looking sad")
+        visual_element = concept.get("visual_element", "golden coins, star bursts, upward arrows")
+        print(f"[Image] ビジュアルコンセプト: {concept}")
+    except Exception as e:
+        print(f"[Image] キャプション分析失敗、デフォルト使用: {e}")
+        title = "知らないと損！SoftBankのお得技"
+        key_number = ""
+        happy_scene = "a cheerful person holding smartphone with coins flying around, big smile"
+        sad_scene = "a confused sad person looking at expensive bill with empty wallet"
+        visual_element = "golden coins raining down, upward arrow graph, star burst effects"
+
+    key_number_instruction = f'- In the CENTER or TOP area, display this key number/stat in VERY LARGE bold text inside a colored badge: "{key_number}"' if key_number else ""
+
     return f"""
-Create a clean, modern Japanese infographic image in 1:1 square format for Instagram.
+Create a vibrant, eye-catching Japanese social media illustration (1:1 square, 1024x1024px, Instagram format).
 
-Design style:
-- Flat design, NOT photographic, NOT artistic illustration
-- White or very light gray background
-- Bold, readable Japanese text
-- Accent color: {BRAND_COLOR}
-- Modern sans-serif font style
+Art style:
+- Modern flat illustration, similar to Japanese app UI illustrations or LINE sticker style
+- Simple, friendly cartoon characters with expressive emotions (no detailed realistic faces)
+- Bold, clean Japanese text overlaid on the scene
+- Bright, energetic colors with high contrast
 
-Layout (top to bottom):
-1. Header bar (full width, {BRAND_COLOR} background): Title text in white, large and bold
-2. Main content area: 3 to 4 key benefit points, each on its own row
-   - Each row: colored circle icon or checkmark on the left, Japanese text on the right
-   - Most important number or percentage displayed in extra-large font, highlighted
-3. Thin divider line
-4. Footer: "{ACCOUNT_HANDLE}" in small gray text, right-aligned
+Scene layout:
+- LEFT HALF: {happy_scene}. Label below in Japanese bold text: "SoftBankユーザー✨"
+- RIGHT HALF: {sad_scene}. Label below in Japanese bold text: "知らないと損！"
+- A clear visual divider (lightning bolt or arrow) between the two halves
+{key_number_instruction}
+- TOP BANNER: Bold red banner with white Japanese text: "{title}"
+- BOTTOM: Small text "{ACCOUNT_HANDLE}" in light gray
 
-Content to display — extract the 3 to 4 most important points from this caption:
-\"\"\"
-{caption[:600]}
-\"\"\"
+Decorative elements scattered around: {visual_element}
 
-Important rules:
-- All text must be in Japanese
-- Numbers and percentages must be accurate and prominently displayed
-- Do NOT add any decorative illustrations, people, or photos
-- Keep it simple and easy to read at a glance
-- This is an informational graphic, not art
+Color palette:
+- Primary red: {BRAND_COLOR_HEX} (for banners, badges, accents)
+- Bright yellow: for coins, highlights, star bursts
+- Light blue or green: for positive/happy side background
+- Light gray or pale pink: for sad/losing side background
+- White: main background
+
+Typography:
+- All Japanese text must be clearly readable
+- Title and key number in BOLD, large font
+- Character labels in medium bold font
+
+Make it instantly communicate: "SoftBankユーザーはこんなにお得！知らないと絶対損！"
+Fun, energetic, scroll-stopping visual — NOT a boring text chart.
 """
 
 
