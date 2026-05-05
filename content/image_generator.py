@@ -180,7 +180,7 @@ def generate_image(caption: str, save_path: str):
 
     # ② gpt-image-1でインフォグラフィック生成
     infographic_prompt = _build_infographic_prompt(caption)
-    print(f"[Image] gpt-image-1でインフォグラフィック生成中...")
+    print(f"[Image] gpt-image-2でインフォグラフィック生成中...")
 
     client = OpenAI(api_key=OPENAI_API_KEY)
     response = client.images.generate(
