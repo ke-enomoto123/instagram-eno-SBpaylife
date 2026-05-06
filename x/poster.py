@@ -73,6 +73,31 @@ def _get_access_token() -> str:
     return access_token
 
 
+def _upload_media_v1(image_path: str) -> str | None:
+    """OAuth 1.0a + v1.1 メディアアップロード（Pay Per Use Free フォールバック用）"""
+    api_key = os.getenv("X_API_KEY", "")
+    api_secret = os.getenv("X_API_SECRET", "")
+    access_token = os.getenv("X_ACCESS_TOKEN", "")
+    access_token_secret = os.getenv("X_ACCESS_TOKEN_SECRET", "")
+
+    if not all([api_key, api_secret, access_token, access_token_secret]):
+        print("[X] OAuth 1.0a 認証情報未設定 → v1.1 fallback skip")
+        return None
+
+    try:
+        import tweepy
+        auth = tweepy.OAuth1UserHandler(api_key, api_secret, access_token, access_token_secret)
+        api = tweepy.API(auth)
+        print(f"[X] v1.1 でメディアアップロード中: {image_path}")
+        media = api.media_upload(filename=image_path)
+        media_id = str(media.media_id)
+        print(f"[X] v1.1 アップロード完了: media_id={media_id}")
+        return media_id
+    except Exception as e:
+        print(f"[X] v1.1 アップロードエラー: {e}")
+        return None
+
+
 def _upload_media(image_path: str, access_token: str) -> str:
     """画像をX v2 Media Upload APIでアップロードし media_id を返す"""
     print(f"[X] 画像アップロード中: {image_path}")
@@ -136,7 +161,7 @@ def post_tweet(text: str, x_username: str = "eno_sbpaylife") -> str:
 
 
 def post_tweet_with_image(text: str, image_path: str, x_username: str = "eno_sbpaylife") -> str:
-    """X（Twitter）に画像付きツイートを投稿する。"""
+    """X（Twitter）に画像付きツイートを投稿する。v2失敗時はv1.1 fallback、両方失敗ならテキストのみで投稿。"""
     print(f"[X] 画像付きツイート投稿開始...")
     print(f"[X] 文字数: {len(text)}")
     print(f"[X] 内容: {text[:60]}...")
@@ -144,7 +169,19 @@ def post_tweet_with_image(text: str, image_path: str, x_username: str = "eno_sbp
     access_token = _get_access_token()
     print(f"[X] アクセストークン取得完了")
 
-    media_id = _upload_media(image_path, access_token)
+    media_id = None
+    try:
+        media_id = _upload_media(image_path, access_token)
+    except Exception as e:
+        print(f"[X] v2画像アップロード失敗: {e}")
+        print("[X] OAuth 1.0a + v1.1 でフォールバック試行")
+        media_id = _upload_media_v1(image_path)
+        if not media_id:
+            print("[X] 画像アップロードフォールバックも失敗、テキストのみで継続")
+
+    payload: dict = {"text": text}
+    if media_id:
+        payload["media"] = {"media_ids": [media_id]}
 
     response = requests.post(
         "https://api.x.com/2/tweets",
@@ -152,7 +189,7 @@ def post_tweet_with_image(text: str, image_path: str, x_username: str = "eno_sbp
             "Authorization": f"Bearer {access_token}",
             "Content-Type": "application/json",
         },
-        json={"text": text, "media": {"media_ids": [media_id]}},
+        json=payload,
         timeout=30,
     )
 
@@ -161,6 +198,6 @@ def post_tweet_with_image(text: str, image_path: str, x_username: str = "eno_sbp
     response.raise_for_status()
 
     tweet_id = str(response.json()["data"]["id"])
-    print(f"[X] 投稿完了! Tweet ID: {tweet_id}")
+    print(f"[X] 投稿完了! Tweet ID: {tweet_id} (image={'あり' if media_id else 'なし'})")
     print(f"[X] URL: https://x.com/{x_username}/status/{tweet_id}")
     return tweet_id
