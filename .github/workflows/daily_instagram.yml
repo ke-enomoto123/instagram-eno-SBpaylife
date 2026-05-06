@@ -1,4 +1,4 @@
-name: Daily Instagram (1x/day)
+name: Daily Post (Instagram + X)
 
 on:
   schedule:
@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  # ── Job 1: キャプション・画像を生成してSlackに通知 ──────────────
+  # ── Job 1: キャプション・画像・Xテキストを生成してSlackに通知 ──
   generate:
     runs-on: ubuntu-latest
     steps:
@@ -30,10 +30,10 @@ jobs:
           path: post_data.json
           retention-days: 1
 
-  # ── Job 2: 承認後にInstagramへ投稿 ──────────────────────────────
+  # ── Job 2: 承認後にInstagram＋X へ同時投稿 ──────────────────────
   post:
     needs: generate
-    environment: preview        # ← ここで承認待ち（GitHub & Slack通知済み）
+    environment: preview        # ← ここで承認待ち
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -51,3 +51,10 @@ jobs:
           INSTAGRAM_ACCESS_TOKEN: ${{ secrets.INSTAGRAM_ACCESS_TOKEN }}
           INSTAGRAM_BUSINESS_ACCOUNT_ID: ${{ secrets.INSTAGRAM_BUSINESS_ACCOUNT_ID }}
         run: python scripts/post_instagram.py
+      - name: Post to X (with image)
+        env:
+          X_OAUTH2_CLIENT_ID: ${{ secrets.X_OAUTH2_CLIENT_ID }}
+          X_OAUTH2_CLIENT_SECRET: ${{ secrets.X_OAUTH2_CLIENT_SECRET }}
+          X_OAUTH2_REFRESH_TOKEN: ${{ secrets.X_OAUTH2_REFRESH_TOKEN }}
+          GH_PAT: ${{ secrets.GH_PAT }}
+        run: python scripts/post_x_with_image.py

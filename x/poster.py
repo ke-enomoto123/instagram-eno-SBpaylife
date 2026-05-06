@@ -74,19 +74,34 @@ def _get_access_token() -> str:
 
 
 def _upload_media(image_path: str, access_token: str) -> str:
-    """画像をX Media Upload APIでアップロードし media_id を返す"""
+    """画像をX v2 Media Upload APIでアップロードし media_id を返す"""
     print(f"[X] 画像アップロード中: {image_path}")
+
+    # v2エンドポイントで試す
     with open(image_path, "rb") as f:
-        response = requests.post(
-            "https://upload.twitter.com/1.1/media/upload.json",
-            headers={"Authorization": f"Bearer {access_token}"},
-            files={"media": f},
-            timeout=60,
-        )
+        image_data = f.read()
+
+    # MIMEタイプ判定
+    mime_type = "image/jpeg"
+    if image_path.lower().endswith(".png"):
+        mime_type = "image/png"
+    elif image_path.lower().endswith(".gif"):
+        mime_type = "image/gif"
+
+    response = requests.post(
+        "https://api.x.com/2/media/upload",
+        headers={"Authorization": f"Bearer {access_token}"},
+        files={"media": (os.path.basename(image_path), image_data, mime_type)},
+        timeout=60,
+    )
+
     if not response.ok:
-        print(f"[X] 画像アップロードエラー: {response.text}")
-    response.raise_for_status()
-    media_id = str(response.json()["media_id"])
+        print(f"[X] v2アップロードエラー: {response.status_code} {response.text}")
+        response.raise_for_status()
+
+    data = response.json()
+    # v2レスポンスは data.id
+    media_id = str(data.get("data", {}).get("id") or data.get("media_id") or data["id"])
     print(f"[X] 画像アップロード完了: media_id={media_id}")
     return media_id
 

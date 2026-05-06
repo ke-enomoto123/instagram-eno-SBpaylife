@@ -1,9 +1,7 @@
 name: Daily X (1x/day)
 
 on:
-  schedule:
-    - cron: '10 3 * * *'    # 12:10 JST (昼)
-  workflow_dispatch:
+  workflow_dispatch:   # 手動実行のみ（自動はdaily_instagram.ymlに統合）
 
 jobs:
   # ── Job 1: Xキャプションを生成してSlackに通知 ──────────────────
