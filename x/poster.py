@@ -1,7 +1,64 @@
 import base64
 import os
+import re
 import requests
 from config import X_OAUTH2_CLIENT_ID, X_OAUTH2_CLIENT_SECRET, X_OAUTH2_REFRESH_TOKEN
+
+
+def _tweet_weight(text: str) -> int:
+    """X (Twitter) の重み付き文字数を計算（CJKは2、Latin系は1）"""
+    weight = 0
+    for ch in text:
+        cp = ord(ch)
+        if (0x0000 <= cp <= 0x10FF) or \
+           (0x2000 <= cp <= 0x200D) or \
+           (0x2010 <= cp <= 0x201F) or \
+           (0x2032 <= cp <= 0x2037):
+            weight += 1
+        else:
+            weight += 2
+    return weight
+
+
+def _truncate_for_x(text: str, max_weight: int = 270) -> str:
+    """重み付き文字数で max_weight 以内に収める。文末記号で切れるよう優先。"""
+    if _tweet_weight(text) <= max_weight:
+        return text
+    parts = re.split(r"(\n+|。|！|？)", text)
+    chunks = []
+    cur = ""
+    for p in parts:
+        if not p:
+            continue
+        if re.fullmatch(r"\n+|。|！|？", p):
+            cur += p
+            chunks.append(cur)
+            cur = ""
+        else:
+            cur += p
+    if cur:
+        chunks.append(cur)
+    result = ""
+    for chunk in chunks:
+        if _tweet_weight(result + chunk) <= max_weight:
+            result += chunk
+        else:
+            break
+    if not result.strip():
+        weight = 0
+        idx = len(text)
+        for i, ch in enumerate(text):
+            cp = ord(ch)
+            cw = 1 if (0x0000 <= cp <= 0x10FF) or \
+                      (0x2000 <= cp <= 0x200D) or \
+                      (0x2010 <= cp <= 0x201F) or \
+                      (0x2032 <= cp <= 0x2037) else 2
+            if weight + cw > max_weight:
+                idx = i
+                break
+            weight += cw
+        return text[:idx].rstrip()
+    return result.rstrip()
 
 
 def _update_github_secret(new_refresh_token: str):
@@ -132,9 +189,13 @@ def _upload_media(image_path: str, access_token: str) -> str:
 
 
 def post_tweet(text: str, x_username: str = "eno_sbpaylife") -> str:
-    """X（Twitter）にテキストのみのツイートを投稿する。"""
+    """X（Twitter）にテキストのみのツイートを投稿する。重み280超は自動truncate。"""
+    original_weight = _tweet_weight(text)
+    if original_weight > 280:
+        text = _truncate_for_x(text, max_weight=270)
+        print(f"[X] 重み{original_weight} → {_tweet_weight(text)} に文末記号でtruncate")
     print(f"[X] ツイート投稿開始...")
-    print(f"[X] 文字数: {len(text)}")
+    print(f"[X] 文字数: {len(text)} 重み: {_tweet_weight(text)}")
     print(f"[X] 内容: {text[:60]}...")
 
     access_token = _get_access_token()
@@ -161,9 +222,13 @@ def post_tweet(text: str, x_username: str = "eno_sbpaylife") -> str:
 
 
 def post_tweet_with_image(text: str, image_path: str, x_username: str = "eno_sbpaylife") -> str:
-    """X（Twitter）に画像付きツイートを投稿する。v2失敗時はv1.1 fallback、両方失敗ならテキストのみで投稿。"""
+    """X（Twitter）に画像付きツイートを投稿する。v2失敗時はv1.1 fallback、両方失敗ならテキストのみで投稿。重み280超は自動truncate。"""
+    original_weight = _tweet_weight(text)
+    if original_weight > 280:
+        text = _truncate_for_x(text, max_weight=270)
+        print(f"[X] 重み{original_weight} → {_tweet_weight(text)} に文末記号でtruncate")
     print(f"[X] 画像付きツイート投稿開始...")
-    print(f"[X] 文字数: {len(text)}")
+    print(f"[X] 文字数: {len(text)} 重み: {_tweet_weight(text)}")
     print(f"[X] 内容: {text[:60]}...")
 
     access_token = _get_access_token()
