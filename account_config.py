@@ -53,7 +53,7 @@ LINKAGE_KNOWLEDGE = """
   ポイント還元・送料無料・LINEスタンプ等の特典がフルに使える。
 
 【スーパーPayPayクーポンを受け取るために必要な連携】
-- S連携（SoftBank連携：My SoftBank IDの確認・登録）
+- SY連携（SoftBank ID × Yahoo! JAPAN ID）
 - YP連携（Yahoo! JAPAN ID × PayPay）
 
 → これでYahoo!ショッピング・PayPayでSoftBankユーザー限定の高還元クーポンが使える。
