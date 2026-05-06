@@ -68,7 +68,7 @@ https://premium.yahoo.co.jp/entry/linkage/sb?sc_e=sbymweb_lyp_sblp_linkage
 
 LINKAGE_TOPICS = [
     "LYPプレミアム特典をフルに使う『SY連携』『YL連携』の話",
-    "スーパーPayPayクーポンを使い倒す『S連携』『YP連携』の話",
+    "スーパーPayPayクーポンを使い倒す『SY連携』『YP連携』の話",
     "SoftBankユーザーなのに連携してない人、損してます",
     "今日から始める SoftBank × Yahoo × LINE 連携の手順",
     "LYPプレミアム無料化に必要な2つの連携",
