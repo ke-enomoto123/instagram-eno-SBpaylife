@@ -18,7 +18,7 @@ IMAGE_STYLES = ["ad_banner", "awareness_infographic"]
 
 
 def _analyze_caption(caption: str) -> dict:
-    """Claudeでキャプションを広告コンセプトに分析"""
+    """Claudeでキャプションを広告コンセプトに分析（正確な事実知識付き）"""
     client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
     response = client.messages.create(
         model="claude-haiku-4-5",
@@ -30,17 +30,47 @@ def _analyze_caption(caption: str) -> dict:
 投稿テキスト:
 {caption}
 
+【⚠️ 正確な事実知識（2026年5月時点公式情報・捏造禁止）】
+
+Yahoo!ショッピングの還元率は「上乗せ」構造:
+- 毎日5%（内訳: ストア1% + 指定決済0.5〜1.0% + LINE連携由来3〜4%）
+- LYPプレミアム会員 +2%（毎日、上限5,000円相当/月）
+- 5のつく日 +4%（上限1,000円相当/開催）
+- LYP会員の日曜+5%（要エントリー・5,000円以上・対象ストアのみ・上限2,000円相当/開催期間）
+
+合計例:
+- 通常日 LYP+LINE連携で最大7%
+- 5のつく日 LYP+LINE連携で最大11%
+- 日曜 LYP+LINE連携で最大12%
+※「+5%」は既存還元への上乗せ。「通常1%→日曜6%」のような単独比較は誤り
+
+LYPプレミアム:
+- Web版月額508円、iOS/Androidアプリ版650円
+- SoftBank対象プラン+個人契約+スマートログインで Web版が無料
+
+【⚠️ 連携の正しい構造】
+中央に「Yahoo! JAPAN ID」、そこから3つのサービスが個別に繋がる:
+- スマートログイン: SoftBank（携帯番号） ↔ Yahoo! JAPAN ID
+- PayPay連携: PayPay ↔ Yahoo! JAPAN ID
+- LINE連携: LINE ↔ Yahoo! JAPAN ID
+※「My SoftBank ↔ PayPay 直接連携」のような図は誤り
+※「My SoftBank」は SoftBank連携の入口（操作画面）であってサービス本体ではない
+
+【⚠️ ビジュアル指定の注意】
+- PayPayポイントを表示するロゴ/アイコンは PayPay（赤い丸に白P）のみ
+- Tポイント（黄色のT）は別ブランド。絶対使わない・登場させない
+
 出力形式（JSONのみ。説明不要）:
 {{
   "main_headline": "最も目立たせるメインコピー（15文字以内）",
   "sub_headline": "サブコピー（25文字以内）",
-  "key_stat": "強調したい数字・特典（例: ポイント3倍、月額0円、5%還元）",
+  "key_stat": "強調したい数字・特典（事実のみ。例: 月額0円、最大12%還元、+5%上乗せ）",
   "featured_service": "メインのサービス名（例: Yahoo!ショッピング, PayPay, LYPプレミアム）",
-  "event_trigger": "日付・イベント名があれば（例: 5のつく日。なければ空文字）",
-  "visual_objects": "画像内オブジェクト（英語。例: smartphone showing Yahoo Shopping app, red shopping bag, golden coins）",
-  "awareness_hook": "気づかせる一言（例: 実はSoftBankユーザーなら月額0円！、この組み合わせで還元率が倍に）",
-  "compare_before": "知らない人の損している状態（例: 毎月508円払い続けている）",
-  "compare_after": "知った後の得している状態（例: 月額0円で同じサービスが使える）",
+  "event_trigger": "日付・イベント名があれば（例: 5のつく日、日曜）",
+  "visual_objects": "画像内オブジェクト（英語）。PayPayの場合は 'PayPay app icon (red circle with white P)' と明記、Tポイント等他ブランドアイコンは絶対使わない",
+  "awareness_hook": "気づかせる一言（事実ベース）",
+  "compare_before": "知らない人の状態（事実のみ）",
+  "compare_after": "知った後の状態（事実のみ）",
   "mood": "雰囲気（excited/warm/premium のどれか）"
 }}"""
         }]
@@ -97,6 +127,12 @@ RULES:
 - Primary: {BRAND_COLOR_HEX} red. Secondary: #FFD700 gold/yellow
 - NO CTA button. NO photographic faces — flat illustration style
 - Scroll-stopping visual impact
+
+⚠️ CRITICAL ACCURACY RULES:
+- For PayPay points/wallet visuals: use PayPay logo (red circle with white "P"), NEVER use Tポイント (yellow T) or any other point service brand mark
+- "利用可能ポイント" / "PayPayポイント" displays must show PayPay branding only
+- For SoftBank/Yahoo/PayPay/LINE 連携 (linkage) diagrams: the CENTRAL HUB is "Yahoo! JAPAN ID", with three separate connections: (1) SoftBank ↔ Yahoo! JAPAN ID via Smart Login, (2) PayPay ↔ Yahoo! JAPAN ID, (3) LINE ↔ Yahoo! JAPAN ID. NEVER draw a direct "My SoftBank ↔ PayPay" connection — My SoftBank is just the entry point UI for SoftBank linkage, not a service node.
+- All numbers/percentages shown must match the factual knowledge given (Yahoo!ショッピング is "+5%上乗せ" structure, not "1%→6%" misleading single-rate comparison)
 """
 
 
@@ -150,6 +186,11 @@ DESIGN RULES:
 - Gray or light blue for negative "before" elements
 - Japanese text must be perfectly rendered
 - Feels like a discovery — the reader should think "え、知らなかった！"
+
+⚠️ CRITICAL ACCURACY RULES:
+- For PayPay points/wallet visuals: use PayPay logo (red circle with white "P"), NEVER use Tポイント (yellow T) or any other point service brand mark
+- For SoftBank/Yahoo/PayPay/LINE 連携 (linkage) diagrams: the CENTRAL HUB is "Yahoo! JAPAN ID", with three connections branching out: (1) SoftBank/My SoftBank ↔ Yahoo! JAPAN ID (via Smart Login), (2) PayPay ↔ Yahoo! JAPAN ID, (3) LINE ↔ Yahoo! JAPAN ID. NEVER draw a direct "My SoftBank ↔ PayPay" connection.
+- All numbers shown must match factual knowledge (e.g., LYP+5% is on top of existing 7%, not a single 5% delta from 1%)
 """
 
 
