@@ -26,7 +26,7 @@ def upload_to_imgbb(image_path: str) -> str:
         b64 = base64.b64encode(f.read()).decode()
     resp = requests.post(
         "https://api.imgbb.com/1/upload",
-        data={"key": os.getenv("IMGBB_API_KEY"), "image": b64, "expiration": 86400},
+        data={"key": os.getenv("IMGBB_API_KEY"), "image": b64},
         timeout=30,
     )
     resp.raise_for_status()
