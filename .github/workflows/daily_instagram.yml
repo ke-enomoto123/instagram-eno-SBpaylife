@@ -2,7 +2,7 @@ name: Daily Post (Instagram + X)
 
 on:
   schedule:
-    - cron: '0 22 * * *'   # 7:00 JST (朝)
+    - cron: '0 2 * * *'    # 11:00 JST (主婦の家事一段落枠)
   workflow_dispatch:
 
 jobs:
@@ -14,8 +14,16 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+      - name: Install Japanese fonts (for carousel slides)
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq fonts-noto-cjk
       - name: Install dependencies
         run: pip install -r requirements.txt
+      - name: Random delay (avoid mechanical posting pattern)
+        if: github.event_name == 'schedule'
+        run: |
+          DELAY=$((RANDOM % 1200))
+          echo "Random delay: ${DELAY}s"
+          sleep $DELAY
       - name: Generate post & notify Slack
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}

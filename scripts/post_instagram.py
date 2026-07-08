@@ -1,6 +1,7 @@
 """
 post_instagram.py
 generate_post.py が保存した post_data.json を読み込んでInstagramに投稿
+image_urls が2枚以上あればカルーセル、1枚なら単発画像
 """
 import os
 import sys
@@ -9,7 +10,7 @@ import datetime
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from instagram.poster import post_to_instagram
+from instagram.poster import post_to_instagram, post_carousel_to_instagram
 
 
 def main():
@@ -21,14 +22,22 @@ def main():
         post_data = json.load(f)
 
     caption = post_data["caption"]
-    image_url = post_data["image_url"]
+    image_urls = post_data.get("image_urls") or [post_data["image_url"]]
     generated_at = post_data.get("generated_at", "不明")
 
     print(f"[Post] 生成日時: {generated_at}")
-    print(f"[Post] 画像URL: {image_url[:60]}...")
+    print(f"[Post] 画像枚数: {len(image_urls)}")
     print(f"[Post] キャプション:\n{caption}")
 
-    post_id = post_to_instagram(image_url, caption)
+    if len(image_urls) >= 2:
+        try:
+            post_id = post_carousel_to_instagram(image_urls, caption)
+        except Exception as e:
+            print(f"[Post] カルーセル投稿失敗 → 単発画像でリトライ: {e}")
+            post_id = post_to_instagram(image_urls[0], caption)
+    else:
+        post_id = post_to_instagram(image_urls[0], caption)
+
     print(f"\n[Post] ✅ Instagram投稿完了! ID: {post_id}")
 
 

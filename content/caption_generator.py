@@ -8,14 +8,27 @@ from account_config import (
 )
 from config import ANTHROPIC_API_KEY
 
+# お得系の「バズる型」（2026年SNS調査ベース）
 POST_PATTERNS = [
-    "体験談型",
-    "比較型",
-    "気づき型",
-    "ハウツー型",
-    "キャンペーン紹介型",
-    "質問誘導型",
-    "数字で語る型",
+    "数字リスト型（「◯選」まとめ。今月のお得を箇条書きで網羅）",
+    "損失回避型（「知らないと損してる」。やってない人が失っている金額を可視化）",
+    "締切型（【今日まで】【残り3日】を冒頭に。締切リマインド）",
+    "実績ビフォーアフター型（「今月+◯◯円」。期間×金額の実績から手順を逆算）",
+    "3ステップ手順型（「①DL ②クーポン ③使うだけ」。5分でできる感）",
+    "比較型（「何もしない場合 vs 設定した場合」の差額提示）",
+    "質問誘導型（意見が割れる問いでコメント欄を活性化）",
+]
+
+# 型ごとの選択重み（損失回避・数字リストを厚めに）
+POST_PATTERN_WEIGHTS = [25, 25, 10, 15, 10, 10, 5]
+
+# 保存・シェアを促すCTA（IGの拡散はsends/保存が最重要シグナル）
+IG_CTA_OPTIONS = [
+    "買い物の前に見返せるように保存してね",
+    "あとで設定する時のために保存しておくと便利だよ",
+    "SoftBankユーザーの友達がいたら送ってあげて",
+    "気になったやつの番号、コメントで教えて",
+    "他にも知りたいお得があったらコメントで教えてね",
 ]
 
 def _load_campaign_info() -> str:
@@ -101,14 +114,8 @@ def _select_topic_with_priority(forced_topic: str = None) -> tuple[str, str, str
     return (random.choice(TOPIC_CATEGORIES), "normal", "")
 
 def _select_post_type() -> str:
-    """投稿タイプを選択（時間帯別）"""
-    time_of_day = os.getenv("TIME_OF_DAY", "general")
-    if time_of_day == "morning":
-        return random.choice(["ハウツー型", "気づき型", "数字で語る型"])
-    elif time_of_day == "noon":
-        return random.choice(["体験談型", "比較型", "キャンペーン紹介型"])
-    else:  # evening
-        return random.choice(["キャンペーン紹介型", "質問誘導型", "体験談型"])
+    """投稿タイプを重み付き選択（損失回避・数字リストを優先）"""
+    return random.choices(POST_PATTERNS, weights=POST_PATTERN_WEIGHTS, k=1)[0]
 
 def _generate_caption(topic: str, pattern: str, mode: str, extra_block: str) -> str:
     client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
@@ -151,6 +158,13 @@ def _generate_caption(topic: str, pattern: str, mode: str, extra_block: str) -> 
 - Yahoo!ショッピングは5のつく日・日曜日にポイント倍増キャンペーンが多い
 - SoftBankまとめて支払いでPayPayポイントが貯まるサービスもある
 
+【バズる書き方の鉄則（2026年SNS調査ベース）】
+- 1行目は10〜15字のフックで始める（例:「知らないと月5,000円損」「9割がやってない設定」）
+- 数字は「期間×金額×割合」の3点セットで具体化（曖昧な「お得」は使わない）
+- 損失回避で書く:「◯◯% お得」より「◯◯円 損してる」の方が刺さる
+- 手順を書くときは3ステップに圧縮（①②③）
+- 検索キーワード（PayPay、Yahoo!ショッピング、LYPプレミアム等のサービス名）を本文に自然に含める
+
 【ルール】
 - 「SoftBankユーザーなら」「SoftBankユーザーだから」「SoftBankユーザーは」のニュアンスを自然に含める
 - 捏造はNG。具体的な数字は上記の基礎知識か、よく知られた事実のみ使用
@@ -158,6 +172,7 @@ def _generate_caption(topic: str, pattern: str, mode: str, extra_block: str) -> 
 - 絵文字を1〜2個使う
 - 最後に「。」をつけない
 - ハッシュタグは含めない（別途追加する）
+- CTAは含めない（別途追加する）
 
 キャプション本文のみ出力してください。"""
 
@@ -236,11 +251,14 @@ def build_caption(forced_topic: str = None) -> dict:
         score = _score_caption(caption, topic)
         print(f"[Caption] 品質スコア: {score}/10.0")
 
-    # ハッシュタグ選択（5〜8個）
-    selected_hashtags = random.sample(HASHTAGS_JA, min(7, len(HASHTAGS_JA)))
+    # CTA（保存・DMシェア誘導。IGの拡散はsends/保存が最重要シグナル）
+    cta = random.choice(IG_CTA_OPTIONS)
+
+    # ハッシュタグは4個に絞る（現在のIGはハッシュタグよりキーワードキャプション重視）
+    selected_hashtags = random.sample(HASHTAGS_JA, min(4, len(HASHTAGS_JA)))
     hashtag_text = " ".join(selected_hashtags)
 
-    full_caption = f"{caption}\n\n{hashtag_text}"
+    full_caption = f"{caption}\n\n{cta}\n\n{hashtag_text}"
 
     return {
         "caption": full_caption,
@@ -269,18 +287,24 @@ def build_x_caption(forced_topic: str = None) -> dict:
 
 【⚠️ X の文字数仕様（厳守）】
 - X は日本語1文字を「重み2」、英数字を「重み1」でカウントし、合計280まで
-- 日本語のみだと **実質135字が上限**、ハッシュタグや記号も含むので余裕を見て120字
-- 本文は **日本語100〜120字**（ハッシュタグ含めて） を厳守
+- 日本語のみだと **実質135字が上限**、余裕を見て120字
+- 本文は **日本語100〜120字** を厳守
 - 超えるとエラー（403 Forbidden）になる
+
+【バズる書き方の鉄則（2026年Xアルゴリズム調査ベース）】
+- 1行目の最初の10文字で「誰得か」を宣言（例:「SoftBankの人だけ得する話」「これ知らない人、損してる」）
+- 損失回避のフックが最強:「知らないと損」「やらないだけで差がつく」
+- 数字は「期間×金額×割合」で具体的に
+- 最後は問いかけか共感で締めて、リプライを誘う（リプ往復がXの最重要シグナル）
 
 【ルール】
 - 短くてリズムよく、2〜3段落・各1〜2文
 - 絵文字は1〜2個のみ
-- 最後に問いかけか共感を誘う一文で締める
-- ハッシュタグはメイン末尾に最大2個まで（含めて120字以内）
+- ⚠️ ハッシュタグは絶対に入れない（Xではランキングに寄与せず、広告臭が出てマイナス）
 - 「。」は付けない
 - 捏造NG。具体的な数字は基礎知識か事実のみ使用
 - SoftBankユーザー歴とサービスの歴史を混同しない（LYPプレミアムは2023年開始）
+- 切れて『…』で終わるのは絶対NG。最初から120字に収まる完結した文を書く
 
 本文のみ出力。"""
 

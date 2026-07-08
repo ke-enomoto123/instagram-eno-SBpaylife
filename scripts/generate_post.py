@@ -1,6 +1,7 @@
 """
 generate_post.py
-キャプション生成 → 画像生成 → imgbb保存 → Slack通知
+ニュースチェック → キャプション生成 → カルーセル生成（表紙=gpt-image-2 + 中身=PILスライド）
+→ imgbb保存 → Slack通知（Instagram＋X両方）
 """
 import os
 import sys
@@ -14,6 +15,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from content.caption_generator import build_caption, build_x_caption
 from content.image_generator import generate_image
 from content.news_fetcher import fetch_latest_news
+from content.carousel_generator import build_carousel_slides
 
 
 ACCOUNT_USERNAME = "@eno_sbpaylife"
@@ -35,8 +37,8 @@ def upload_to_imgbb(image_path: str) -> str:
     return url
 
 
-def notify_slack(caption: str, image_url: str, x_text: str, run_url: str):
-    """SlackにInstagram＋X両方のプレビューを通知"""
+def notify_slack(caption: str, image_urls: list, x_text: str, run_url: str):
+    """SlackにInstagram（カルーセル）＋Xのプレビューを通知"""
     webhook_url = os.getenv("SLACK_WEBHOOK_URL")
     if not webhook_url:
         print("[Slack] SLACK_WEBHOOK_URL未設定 → スキップ")
@@ -44,53 +46,67 @@ def notify_slack(caption: str, image_url: str, x_text: str, run_url: str):
 
     x_char = len(x_text)
     x_status = "✅" if x_char <= 280 else "⚠️ 文字数オーバー"
+    n = len(image_urls)
+    format_label = f"カルーセル {n}枚" if n >= 2 else "単発画像"
+
+    blocks = [
+        {
+            "type": "header",
+            "text": {"type": "plain_text", "text": f"📸🐦 投稿プレビュー｜{ACCOUNT_NAME}（{ACCOUNT_USERNAME}）"}
+        },
+        {
+            "type": "section",
+            "text": {"type": "mrkdwn", "text": f"*形式:* {format_label}\n*📸 Instagramキャプション:*\n```" + caption + "```"}
+        },
+    ]
+
+    for i, url in enumerate(image_urls[:4]):
+        label = "表紙" if i == 0 else f"スライド{i}"
+        blocks.append({
+            "type": "image",
+            "image_url": url,
+            "alt_text": f"{label}プレビュー",
+            "title": {"type": "plain_text", "text": f"{label} ({i+1}/{n})"},
+        })
+    if n > 4:
+        blocks.append({
+            "type": "section",
+            "text": {"type": "mrkdwn", "text": f"…ほか{n - 4}枚（全{n}枚のカルーセル）"}
+        })
+
+    blocks += [
+        {"type": "divider"},
+        {
+            "type": "section",
+            "text": {"type": "mrkdwn", "text": f"*🐦 X投稿テキスト:*\n```{x_text}```"}
+        },
+        {
+            "type": "section",
+            "fields": [
+                {"type": "mrkdwn", "text": f"*X文字数:* {x_char} / 280　{x_status}"},
+                {"type": "mrkdwn", "text": "*(表紙画像をXにも投稿します)*"}
+            ]
+        },
+        {
+            "type": "section",
+            "text": {"type": "mrkdwn", "text": "👆 内容を確認して、GitHubで承認または却下してください"}
+        },
+        {
+            "type": "actions",
+            "elements": [
+                {
+                    "type": "button",
+                    "text": {"type": "plain_text", "text": "✅ GitHubで承認・却下する"},
+                    "style": "primary",
+                    "url": run_url
+                }
+            ]
+        }
+    ]
 
     payload = {
         "text": f"📸🐦 Instagram＋X投稿チェック依頼（{ACCOUNT_USERNAME}）",
-        "blocks": [
-            {
-                "type": "header",
-                "text": {"type": "plain_text", "text": f"📸🐦 投稿プレビュー｜{ACCOUNT_NAME}（{ACCOUNT_USERNAME}）"}
-            },
-            {
-                "type": "section",
-                "text": {"type": "mrkdwn", "text": "*📸 Instagramキャプション:*\n```" + caption + "```"}
-            },
-            {
-                "type": "image",
-                "image_url": image_url,
-                "alt_text": "投稿画像プレビュー"
-            },
-            {
-                "type": "divider"
-            },
-            {
-                "type": "section",
-                "text": {"type": "mrkdwn", "text": f"*🐦 X投稿テキスト:*\n```{x_text}```"}
-            },
-            {
-                "type": "section",
-                "fields": [
-                    {"type": "mrkdwn", "text": f"*X文字数:* {x_char} / 280　{x_status}"},
-                    {"type": "mrkdwn", "text": "*(同じ画像をXにも投稿します)*"}
-                ]
-            },
-            {
-                "type": "section",
-                "text": {"type": "mrkdwn", "text": "👆 内容を確認して、GitHubで承認または却下してください"}
-            },
-            {
-                "type": "actions",
-                "elements": [
-                    {
-                        "type": "button",
-                        "text": {"type": "plain_text", "text": "✅ GitHubで承認・却下する"},
-                        "style": "primary",
-                        "url": run_url
-                    }
-                ]
-            }
-        ]
+        "blocks": blocks,
     }
 
     resp = requests.post(webhook_url, json=payload, timeout=10)
@@ -112,32 +128,55 @@ def main():
     # Instagramキャプション生成
     result = build_caption(forced_topic=forced_topic)
     caption = result["caption"]
+    topic = result.get("topic", "")
     print(f"\n[Generate] キャプション:\n{caption}")
     print(f"[Generate] 文字数: {len(caption)} / スコア: {result['score']}")
 
     # X用テキスト生成（X専用の短いキャプション）
     x_result = build_x_caption(forced_topic=forced_topic)
-    x_text_raw = x_result["caption"]
-    x_text = x_text_raw[:270] + "…" if len(x_text_raw) > 270 else x_text_raw
+    x_text = x_result["caption"]
     print(f"\n[Generate] X用テキスト:\n{x_text}")
 
-    # 画像生成（Instagram・X共用）
-    save_path = "/tmp/post_image.png"
-    image_local, dalle_url = generate_image(caption, save_path)
+    # 表紙画像生成（gpt-image-2）
+    cover_path = "/tmp/post_image.png"
+    image_local, fallback_url = generate_image(caption, cover_path)
 
-    # imgbbにアップロード（DALL-E URLは1時間で期限切れのため）
-    image_url = upload_to_imgbb(image_local)
+    # カルーセルスライド生成（PIL。失敗時は単発画像にフォールバック）
+    slide_paths = None
+    try:
+        slide_paths, structure = build_carousel_slides(
+            caption=caption, topic=topic,
+            cover_path=image_local, handle=ACCOUNT_USERNAME,
+        )
+    except Exception as e:
+        print(f"[Carousel] スライド生成エラー → 単発画像で続行: {e}")
+
+    if not slide_paths:
+        slide_paths = [image_local]
+
+    # 全スライドをimgbbにアップロード
+    image_urls = []
+    for p in slide_paths:
+        try:
+            image_urls.append(upload_to_imgbb(p))
+        except Exception as e:
+            print(f"[imgbb] {p} アップロード失敗: {e}")
+    if not image_urls:
+        image_urls = [fallback_url] if fallback_url else []
+    if not image_urls:
+        raise RuntimeError("画像URLを1枚も確保できませんでした")
 
     # post_data.json に保存（post jobで使用）
     post_data = {
         "caption": caption,
-        "image_url": image_url,
+        "image_url": image_urls[0],       # 表紙（X投稿・後方互換用）
+        "image_urls": image_urls,          # カルーセル全枚数
         "x_text": x_text,
         "generated_at": datetime.datetime.now().isoformat(),
     }
     with open("post_data.json", "w", encoding="utf-8") as f:
         json.dump(post_data, f, ensure_ascii=False, indent=2)
-    print("[Generate] post_data.json 保存完了")
+    print(f"[Generate] post_data.json 保存完了（画像{len(image_urls)}枚）")
 
     # GitHub Actions URLを構築
     server = os.getenv("GITHUB_SERVER_URL", "https://github.com")
@@ -146,7 +185,7 @@ def main():
     run_url = f"{server}/{repo}/actions/runs/{run_id}"
 
     # Slack通知（Instagram＋X両方）
-    notify_slack(caption, image_url, x_text, run_url)
+    notify_slack(caption, image_urls, x_text, run_url)
 
 
 if __name__ == "__main__":
